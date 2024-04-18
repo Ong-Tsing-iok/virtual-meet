@@ -9,6 +9,7 @@ import { sendModel } from "../helpers/socketConnection";
 import { PlayerContext } from "../helpers/contextProvider";
 import { connectToNewUser, getDefaultDevices } from "../helpers/getMedia";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader";
 import PlayerModel from "./PlayerModel";
 import Pov from "./Pov";
 import BottomBar from "./BottomBar";
@@ -18,6 +19,7 @@ import OwnVideo from "./OwnVideo";
 import RightBar from "./RightBar";
 import Screen from "./Screen";
 import ScreenFull from "./ScreenFull";
+import Scene from "./Scene";
 
 function MainEngine() {
   const [loading, setLoading] = useState(true);
@@ -60,6 +62,7 @@ function MainEngine() {
   };
 
   const { nodes, materials } = useLoader(GLTFLoader, "/television.glb");
+  const sceneGeometry = useLoader(PLYLoader, "/Bearded guy.ply")
 
   const placeHolder = useLoader(THREE.TextureLoader, "/placeholder.jpg");
 
@@ -398,6 +401,9 @@ function MainEngine() {
                 materials={materials}
                 screen={screen}
                 screenStreamRef={screenStreamRef}
+              />
+              <Scene
+                sceneGeometry={sceneGeometry}
               />
               <Stars
                 radius={100}
