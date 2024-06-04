@@ -5,6 +5,8 @@ import { memo, useEffect, useMemo, Suspense, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useVideoTexture, Html } from "@react-three/drei";
 import { BsMicFill, BsMicMuteFill } from "react-icons/bs";
+import irAudioFile from "/1.wav";
+import { askForIR } from "../helpers/IRHelper";
 
 const PlayerModel = memo((value) => {
   const [isVideo, setIsVideo] = useState(false);
@@ -40,6 +42,7 @@ const PlayerModel = memo((value) => {
       nodes: value.nodes,
       materials: value.materials,
       placeHolder: value.placeHolder,
+      irBuffer: value.irBuffer,
     }),
     [value]
   );
@@ -68,6 +71,7 @@ const PlayerModel = memo((value) => {
 
   let videoTracks = useRef([]);
   let audioTracks = useRef([]);
+  let channelBuffers = useRef([]);
   useEffect(() => {
     if (playerData.video) {
       videoTracks.current = playerData.video.getVideoTracks();
@@ -88,29 +92,103 @@ const PlayerModel = memo((value) => {
       audioTracks.current = playerData.audio.getAudioTracks();
       if (audioTracks.current.length > 0) {
         const stream = playerData.audio;
-        const audio = createAudio(stream);
+        const [audio, leftChannelBuffer, rightChannelBuffer] = createAudio(stream);
+        channelBuffers.current = [leftChannelBuffer, rightChannelBuffer];
+        // console.log('create audio')
         audioTracks.current[0].onmute = () => {
           audio.srcObject = null;
           audioTracks.current = [];
+          channelBuffers.current = [];
         };
       }
     }
   }, [playerData.audio]);
 
+  useEffect(() => {
+    // console.log('in player model')
+    // console.log(playerData.ir_buffer)
+    if (channelBuffers.current.length > 0 && playerData.irBuffer) {
+      const [leftChannelBuffer, rightChannelBuffer] = channelBuffers.current;
+      const midpoint = playerData.irBuffer.length / 2;
+      leftChannelBuffer.getChannelData(0).set(playerData.irBuffer.subarray(0, midpoint));
+      rightChannelBuffer.getChannelData(0).set(playerData.irBuffer.subarray(midpoint));
+      console.log('set ir buffer')
+    }
+  }, [playerData.irBuffer]);
+
   const createAudio = (stream) => {
+    // const irAudioFile = './Factory Hall.wav';
     var ctx = new AudioContext();
+    // Create ConvolverNodes for left and right channels
+    const leftConvolver = ctx.createConvolver();
+    const rightConvolver = ctx.createConvolver();
+    var leftChannelBuffer = ctx.createBuffer(
+      1,
+      3969, // The length of IR is 3968
+      ctx.sampleRate
+    );
+    var rightChannelBuffer = ctx.createBuffer(
+      1,
+      3969, // The length of IR is 3968
+      ctx.sampleRate
+    )
+    const initialIR = new Float32Array(3969).fill(0);
+    initialIR[1984] = 1; // Set the middle of the IR to 1
+    leftChannelBuffer.getChannelData(0).set(initialIR);
+    rightChannelBuffer.getChannelData(0).set(initialIR);
+
+    leftConvolver.buffer = leftChannelBuffer;
+    rightConvolver.buffer = rightChannelBuffer;
+    // Load the stereo audio file
+    // fetch(irAudioFile)
+    //   .then((response) => response.arrayBuffer())
+    //   .then((arrayBuffer) => ctx.decodeAudioData(arrayBuffer))
+    //   .then((audioBuffer) => {
+    //     // Separate the audio data into left and right channels
+    //     const leftChannelData = audioBuffer.getChannelData(0); // Left channel data
+    //     const rightChannelData = audioBuffer.getChannelData(1); // Right channel data
+
+    //     // Create AudioBuffer for left channel
+    //     const leftChannelBuffer = ctx.createBuffer(
+    //       1,
+    //       audioBuffer.length,
+    //       audioBuffer.sampleRate
+    //     );
+    //     leftChannelBuffer.copyToChannel(leftChannelData, 0);
+
+    //     // Create AudioBuffer for right channel
+    //     const rightChannelBuffer = ctx.createBuffer(
+    //       1,
+    //       audioBuffer.length,
+    //       audioBuffer.sampleRate
+    //     );
+    //     rightChannelBuffer.copyToChannel(rightChannelData, 0);
+
+    //     // Set the left and right channel buffers to the ConvolverNodes
+    //     leftConvolver.buffer = leftChannelBuffer;
+    //     rightConvolver.buffer = rightChannelBuffer;
+    //   })
+    //   .catch((error) => {
+    //     console.error("Error loading stereo audio file:", error);
+    //   });
+    const merger = ctx.createChannelMerger(2);
     var audio = new Audio();
     audio.srcObject = stream;
     var gainNode = ctx.createGain();
-    gainNode.gain.value = 0.5;
+    gainNode.gain.value = 1.0;
     audio.onloadedmetadata = function () {
       var source = ctx.createMediaStreamSource(audio.srcObject);
       audio.play();
       audio.muted = true;
-      source.connect(gainNode);
+      source.connect(leftConvolver);
+      source.connect(rightConvolver);
+      leftConvolver.connect(merger, 0, 0);
+      rightConvolver.connect(merger, 0, 1);
+      merger.connect(gainNode);
+      // source.connect(gainNode);
       gainNode.connect(ctx.destination);
     };
-    return audio;
+    return [audio, leftChannelBuffer, rightChannelBuffer];
   };
 
   return (

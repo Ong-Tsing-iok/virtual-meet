@@ -56,7 +56,7 @@ const Pov = ({ socket, povRef, randomPositionX, randomPositionZ }) => {
     keyMap["KeyD"] && povRef.current.translateX(delta);
     keyMap["KeyW"] && povRef.current.translateZ(-delta);
     keyMap["KeyS"] && povRef.current.translateZ(delta);
-    povRef.current.position.y = 0.2;
+    povRef.current.position.y = 1.6;
     if (keyMap["KeyA"] || keyMap["KeyD"] || keyMap["KeyW"] || keyMap["KeyS"]) {
       throttleOnChange();
     }
@@ -68,7 +68,7 @@ const Pov = ({ socket, povRef, randomPositionX, randomPositionZ }) => {
         <>
           <PerspectiveCamera
             ref={povRef}
-            position={[randomPositionX, 0.2, randomPositionZ]}
+            position={[randomPositionX, 1.6, randomPositionZ]}
             rotation={[0, 0, 0]}
             makeDefault={true}
           />

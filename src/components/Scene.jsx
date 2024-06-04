@@ -1,16 +1,17 @@
 /* eslint-disable react/prop-types */
 /* eslint-disable react/no-unknown-property */
 // import { Text } from "@react-three/drei";
-import { MeshStandardMaterial } from "three";
+import { Mesh, PointsMaterial } from "three";
 const Scene = ({ sceneGeometry }) => {
 
-  const material = new MeshStandardMaterial({ color: 0xffffff });
+  // const material = new MeshStandardMaterial({ color: 0xffffff });
+  const material = new PointsMaterial({ size: 0.01, vertexColors: true });
+  const mesh = new Mesh(sceneGeometry, Mesh.meshMaterial);
 
   return (
     <group position={[0, 0, 0]}>
-      <mesh geometry={sceneGeometry} material={material} scale={[0.001, 0.001, 0.001]} rotation={[Math.PI / 2, Math.PI / 2 + 0.3, Math.PI / 2]}>
-
-      </mesh>
+      {/* <points geometry={sceneGeometry} material={material}></points> */}
+      <mesh geometry={mesh.geometry} material={material} />
     </group>
   );
 };

@@ -14,6 +14,7 @@ import PlayerModel from "./PlayerModel";
 import Pov from "./Pov";
 import BottomBar from "./BottomBar";
 import { LoaderBar } from "../helpers/loaders";
+import { askForIR } from "../helpers/IRHelper";
 import Info from "./Info";
 import OwnVideo from "./OwnVideo";
 import RightBar from "./RightBar";
@@ -32,10 +33,11 @@ function MainEngine() {
     peer,
     room,
     screenShared,
-    setDevice
+    setDevice,
   } = useContext(PlayerContext);
   const [videos, setVideos] = useState({});
   const [audios, setAudios] = useState({});
+  const [irBuffers, setIrBuffers] = useState({});
   const [audioIcon, setAudioIcon] = useState({});
   const [isOwnVideo, setIsOwnVideo] = useState(false);
   const [screen, setScreen] = useState(false);
@@ -62,7 +64,7 @@ function MainEngine() {
   };
 
   const { nodes, materials } = useLoader(GLTFLoader, "/television.glb");
-  const sceneGeometry = useLoader(PLYLoader, "/Bearded guy.ply")
+  const sceneGeometry = useLoader(PLYLoader, "/scene0000_02_vh_clean_or.ply");
 
   const placeHolder = useLoader(THREE.TextureLoader, "/placeholder.jpg");
 
@@ -79,12 +81,12 @@ function MainEngine() {
       });
       peerConnection.on("open", () => {
         peer.current = peerConnection;
-        randomPositionX.current = Math.random();
+        randomPositionX.current = Math.random() - 5;
         randomPositionZ.current = Math.random() * 2 + 2;
         getMedia();
         setLoading(false);
         getDefaultDevices().then((devices) => {
-          setDevice({audio: devices.audioDevice, video: devices.videoDevice});
+          setDevice({ audio: devices.audioDevice, video: devices.videoDevice });
         });
       });
     } catch (error) {
@@ -122,19 +124,19 @@ function MainEngine() {
         if (call.metadata.type === "screen") {
           screenStreamRef.current = userStream;
           setScreen(true);
-        }else if (call.metadata.type === "video") {
-            if (!videos[call.peer]) {
-              setVideos((prev) => {
-                return { ...prev, [call.peer]: userStream };
-              });
-            }
-          }else if (call.metadata.type === "audio") {
-            if (!audios[call.peer]) {
-              setAudios((prev) => {
-                return { ...prev, [call.peer]: userStream };
-              });
-            }
+        } else if (call.metadata.type === "video") {
+          if (!videos[call.peer]) {
+            setVideos((prev) => {
+              return { ...prev, [call.peer]: userStream };
+            });
           }
+        } else if (call.metadata.type === "audio") {
+          if (!audios[call.peer]) {
+            setAudios((prev) => {
+              return { ...prev, [call.peer]: userStream };
+            });
+          }
+        }
       });
     });
     sendModel(socket.current, {
@@ -172,7 +174,7 @@ function MainEngine() {
           conn.send({
             position: {
               x: randomPositionX.current,
-              y: 0.2,
+              y: 1.6,
               z: randomPositionZ.current,
             },
             rotation: { _x: 0, _y: 0, _z: 0 },
@@ -203,7 +205,7 @@ function MainEngine() {
           conn.send({
             position: {
               x: randomPositionX.current,
-              y: 0.2,
+              y: 1.6,
               z: randomPositionZ.current,
             },
             rotation: { _x: 0, _y: 0, _z: 0 },
@@ -226,6 +228,7 @@ function MainEngine() {
       players.current = { [data.socketId]: { ...data, audio: false } };
     }
     if (data.type === "audio") {
+      // console.log("audio data sent")
       setAudioIcon((prev) => {
         return { ...prev, [data.socketId]: data.audio };
       });
@@ -268,7 +271,7 @@ function MainEngine() {
     } else {
       updatePlayers(data, conn);
     }
-  }
+  };
 
   const updatePlayers = (data, conn) => {
     const id = data.socketId;
@@ -317,6 +320,36 @@ function MainEngine() {
           data.rotation._y,
           data.rotation._z
         );
+        // TODO
+        // This will not execute when checking for audioIcon[id]
+        // Let's just leave it for now.
+        // if (audioIcon[id]) {
+          console.log('asking for IR')
+          askForIR(
+            {
+              x: povRef.current.position.x,
+              y: povRef.current.position.y,
+              z: povRef.current.position.z,
+            },
+            {
+              x: data.position.x,
+              y: data.position.y,
+              z: data.position.z,
+            },
+            id,
+            (data) => {
+              console.log(data)
+              if (data) {
+                setIrBuffers((prev) => {
+                  return { ...prev, [id]: new Float32Array(data.ir_buffer, 0, data.ir_buffer.byteLength / 4) };
+                })
+                // players.current[id].ir_buffer = new Float32Array(data.ir_buffer, 0, data.ir_buffer.byteLength / 4);
+                // console.log(players.current[id].ir_buffer)
+              }
+            }
+          );
+          // Update ir buffer here and store in currentPlayer? then it could be updated in PlayerModel.
+        // }
       }
     }
   };
@@ -402,9 +435,7 @@ function MainEngine() {
                 screen={screen}
                 screenStreamRef={screenStreamRef}
               />
-              <Scene
-                sceneGeometry={sceneGeometry}
-              />
+              <Scene sceneGeometry={sceneGeometry} />
               <Stars
                 radius={100}
                 depth={50}
@@ -440,6 +471,7 @@ function MainEngine() {
                       materials={materials}
                       videos={videos}
                       placeHolder={placeHolder}
+                      irBuffer={irBuffers[key.socketId]}
                     />
                   );
                 })}
